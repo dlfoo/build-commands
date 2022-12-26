@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    my-cloud-label: my-prod-annotation
+    note: Hello, I am prod!
+    version: v1.0.0
+  labels:
+    app: nginx
+    variant: prod
+  name: prod-my-web-service
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: nginx
+    variant: prod

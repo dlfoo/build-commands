@@ -1,0 +1,74 @@
+builds:
+- name: prod
+  kustomize:
+    args: []
+    profiles:
+    - remote
+    - local
+    build:
+    - templatePath: apps/us-west-a/prod
+      generatedPath: generated/us-west-a/prod
+  kpt:
+    apply:
+    - path: generated/us-west-a/prod
+- name: dev
+  kustomize:
+    profiles:
+    - local
+    args:
+      - --my-arg before-stuff
+    build:
+    - templatePath: apps/us-west-a/prod
+      generatedPath: generated/us-west-a/prod
+      profiles:
+      - remote
+      args:
+        - --my-arg1 stuff
+- name: from-template
+  parent: dev
+  import_type: merge
+  kustomize:
+    profiles:
+    - local
+    args:
+      - --my-child-arg stuffstuff
+    build:
+    - templatePath: apps/us-west-a/prod
+      generatedPath: generated/us-west-a/prod
+      profiles:
+      - remote
+      args:
+        - --my-arg2 stuff
+- name: from-template2
+  parent: from-template
+  import_type: merge
+  kustomize:
+    profiles:
+    - local
+    args:
+      - --my-child-arg stuffstuff
+    build:
+    - templatePath: apps/us-west-a/prod
+      generatedPath: generated/us-west-a/prod
+      profiles:
+      - remote
+      args:
+        - --my-arg3 stuff
+
+
+profiles:
+  local:
+    commands:
+    - command: "sleep"
+      args: ["60"]
+      mode: "while"
+      buffer: "2s"
+      timeout: "30s"
+    envs:
+      "my_var": "my-value"
+      "another_var": "another-value"
+  remote:
+    envs:
+      "my_var": "my-value-remote"
+      "remote_var": "another-remote-value"
+
