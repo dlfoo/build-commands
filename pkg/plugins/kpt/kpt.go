@@ -26,7 +26,7 @@ type KptConfig struct {
 type KptApply struct {
 	types.GenericOptions `yaml:",inline"`
 	Path                 types.PathString `yaml:"path"`
-	needInit             bool             `yaml:"_"`
+	initalised           bool             `yaml:"_"`
 }
 
 func (k *KptConfig) ID() string {
@@ -54,8 +54,13 @@ func (k *KptConfig) Verify(currentDir string) error {
 			return fmt.Errorf("generated config Path: %s/%s, was not found in dir: %s", currentDir, c.Path, currentDir)
 		}
 		if _, ok := foundFiles[fmt.Sprintf("%s/%s/resourcegroup.yaml", currentDir, string(c.Path))]; !ok {
-			c.needInit = true
-			o.Infof("Kpt resourcegroup.yaml file was not found in dir: %s, will add kpt pkg init command.", c.Path)
+			c.initalised = true
+		}
+		if _, ok := foundFiles[fmt.Sprintf("%s/%s/Kptfile", currentDir, string(c.Path))]; !ok {
+			c.initalised = true
+		}
+		if !c.initalised {
+			o.Infof("Kpt Kptfile or resourcegroup.yaml file was not found in dir: %s, will add kpt pkg init command.", c.Path)
 		}
 	}
 	return nil
@@ -64,7 +69,7 @@ func (k *KptConfig) Verify(currentDir string) error {
 func (k *KptConfig) Commands(baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
 	commands := []*types.BuildCommandSet{}
 	for _, b := range k.Apply {
-		if b.needInit {
+		if !b.initalised {
 			commands = append(commands, &types.BuildCommandSet{PluginID: k.ID(), Cmd: &types.BuildCommand{ID: initCmdID, Cmd: exec.Command("kpt", "live", "init", filepath.Join(baseDir, string(b.Path)))}})
 		}
 		cmd := &types.BuildCommand{
