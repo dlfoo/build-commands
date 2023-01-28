@@ -53,10 +53,10 @@ func (k *KptConfig) Verify(currentDir string) error {
 		if _, ok := foundDir[fmt.Sprintf("%s/%s", currentDir, string(c.Path))]; !ok {
 			return fmt.Errorf("generated config Path: %s/%s, was not found in dir: %s", currentDir, c.Path, currentDir)
 		}
-		if _, ok := foundFiles[fmt.Sprintf("%s/%s/resourcegroup.yaml", currentDir, string(c.Path))]; !ok {
+		if _, ok := foundFiles[fmt.Sprintf("%s/%s/resourcegroup.yaml", currentDir, string(c.Path))]; ok {
 			c.initalised = true
 		}
-		if _, ok := foundFiles[fmt.Sprintf("%s/%s/Kptfile", currentDir, string(c.Path))]; !ok {
+		if _, ok := foundFiles[fmt.Sprintf("%s/%s/Kptfile", currentDir, string(c.Path))]; ok {
 			c.initalised = true
 		}
 		if !c.initalised {
