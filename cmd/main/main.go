@@ -11,9 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -165,7 +164,7 @@ func main() {
 		if stat.IsDir() {
 			buildDir = fmt.Sprintf("%s/build-commands.yaml", buildDir)
 		}
-		log.Printf("name: %s", stat.Name())
+		fmt.Printf("using: %s\n", buildDir)
 	}
 
 	if buildNames != "" {
@@ -180,7 +179,7 @@ func main() {
 	if !filepath.IsAbs(buildDir) {
 		buildDir = filepath.Join(currentDir, buildDir)
 	}
-	builds, profiles, err := command.GetBuilds(buildDir, specifiedBuilds)
+	builds, profiles, err := command.GetBuilds(buildDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -208,7 +207,12 @@ func main() {
 				continue
 			}
 		}
-		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
+
+		if err := command.Verify(buildDir, b); err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 
 		sets := b.GetCommands(filepath.Dir(buildDir), profiles)
 		for _, set := range sets {
@@ -218,12 +222,12 @@ func main() {
 			if err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile); err != nil {
 				log.Fatal(err)
 			}
-			//go func() {
-			if err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile); err != nil {
-				log.Fatal(err)
-			}
-			//}()
-			//time.Sleep(10 * time.Second)
+			go func() {
+				if err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile); err != nil {
+					log.Fatal(err)
+				}
+			}()
+
 			fmt.Fprintf(outputFile, "[%s][%s] %s\n", set.PluginID, set.Cmd.ID, set.Cmd.Cmd)
 			if execCommand {
 				out, err := set.Cmd.Cmd.CombinedOutput()
@@ -243,7 +247,6 @@ func main() {
 				log.Fatal(err)
 			}
 			cancel()
-			time.Sleep(1 * time.Second)
 		}
 
 	}
