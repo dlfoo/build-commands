@@ -27,7 +27,7 @@ builds:
 - name: canary
   kustomize:
     profiles:
-    - fail
+    - local
     build:
     - templatePath: apps/us-west-a/prod
       generatedPath: generated/us-west-a/prod
@@ -71,6 +71,11 @@ profiles:
     - command: "sleep"
       args: ["60"]
       mode: "while"
+      buffer: "2s"
+      timeout: "30s"
+    - command: "echo"
+      args: ["hello_world"]
+      mode: "before"
       buffer: "2s"
       timeout: "30s"
     envs:

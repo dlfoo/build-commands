@@ -240,6 +240,7 @@ func main() {
 			newctx, cancel := context.WithCancel(ctx)
 			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, recv)
 			if err != nil {
+				log.Print(err)
 				cancel()
 				break
 			}

@@ -4,6 +4,7 @@ import (
 	"build-commands/pkg/config"
 	"build-commands/pkg/output"
 	"build-commands/pkg/types"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -128,26 +129,15 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 				Command: cmd.String(),
 			}
 
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				fmt.Fprint(outputFile, err)
-			}
+			stderr := new(bytes.Buffer)
 
-			stderr, err := cmd.StderrPipe()
-			if err != nil {
-				fmt.Fprint(outputFile, err)
-			}
+			cmd.Stderr = stderr
 
-			_, err = cmd.Output()
+			stdout, err := cmd.Output()
 			if err != nil {
 				eErr := err.(*exec.ExitError)
 				result.ExitCode = eErr.ExitCode()
 				result.Pid = eErr.Pid()
-			}
-
-			bOut, err := io.ReadAll(stdout)
-			if err != nil {
-				return err
 			}
 
 			bErr, err := io.ReadAll(stderr)
@@ -155,8 +145,9 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 				return err
 			}
 
-			result.Stdout = string(bOut)
+			result.Stdout = string(stdout)
 			result.Stderr = string(bErr)
+			result.Pid = cmd.Process.Pid
 			resultReceiver <- result
 
 		case types.RunWhile:
@@ -204,9 +195,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 					log.Print(err)
 				}
 
-				if err := cmd.Wait(); err != nil {
-					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned %s upon exit with process state %q\n", set.PluginID, set.Cmd.ID, m, cmd.String(), err, cmd.ProcessState)
-				}
+				cmd.Wait()
 
 				result.Stderr = string(bErr)
 				result.Stdout = string(bOut)
@@ -229,6 +218,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 	}
 	wg.Wait()
+	log.Print("done")
 
 	return nil
 }
