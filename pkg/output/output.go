@@ -33,6 +33,7 @@ type Output struct {
 }
 
 type CommandResult struct {
+	Build    string `json:"build"`
 	Command  string `json:"command"`
 	Stdout   string `json:"std_out"`
 	Stderr   string `json:"std_err"`
