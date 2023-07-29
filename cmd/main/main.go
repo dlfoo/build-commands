@@ -27,6 +27,7 @@ var (
 	output           string
 	execCommand      bool
 	outputFormatJSON bool
+	streamResults    bool
 	help             bool
 	mySet            *flag.FlagSet
 )
@@ -38,6 +39,7 @@ func init() {
 	mySet.StringVar(&output, "output", "", "write commands to the specified file instead of stdout")
 	mySet.BoolVar(&execCommand, "exec", false, "execute commands on the machine")
 	mySet.BoolVar(&outputFormatJSON, "json", false, "output only JSON")
+	mySet.BoolVar(&streamResults, "stream", false, "output a stream of results in JSON")
 	mySet.BoolVar(&help, "help", false, "show example config file")
 	if len(os.Args) > 2 {
 		if err := mySet.Parse(os.Args[2:]); err != nil {
@@ -207,6 +209,8 @@ func main() {
 		defer f.Close()
 	}
 
+	streamer := json.NewEncoder(outputFile)
+
 	results := make(map[string][]*o.CommandResult)
 
 	for _, b := range builds {
@@ -221,7 +225,13 @@ func main() {
 		recv := make(chan *o.CommandResult)
 		go func() {
 			for r := range recv {
+				r.Build = b.Name()
 				results[b.Name()] = append(results[b.Name()], r)
+				if streamResults {
+					if err := streamer.Encode(r); err != nil {
+						log.Fatal(err)
+					}
+				}
 			}
 		}()
 
@@ -298,7 +308,7 @@ func main() {
 		wg.Wait()
 		close(recv)
 	}
-	if outputFormatJSON {
+	if outputFormatJSON && !streamResults {
 		b, err := json.MarshalIndent(results, "", "  ")
 		if err != nil {
 			log.Fatal(err)
