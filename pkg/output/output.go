@@ -32,6 +32,13 @@ type Output struct {
 	plugin types.Plugin
 }
 
+type CommandResult struct {
+	Command  string `json:"command"`
+	Stdout   string `json:"std_out"`
+	Stderr   string `json:"std_err"`
+	ExitCode int    `json:"exit_code"`
+}
+
 func (o *Output) Infof(format string, a ...interface{}) {
 	switch o.format {
 	case outputFormatPlugin:

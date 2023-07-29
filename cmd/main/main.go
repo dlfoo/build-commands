@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -208,7 +209,7 @@ func main() {
 				continue
 			}
 		}
-		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
+		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 
 		sets := b.GetCommands(filepath.Dir(buildDir), profiles)
 		for _, set := range sets {
@@ -226,17 +227,29 @@ func main() {
 			//time.Sleep(10 * time.Second)
 			fmt.Fprintf(outputFile, "[%s][%s] %s\n", set.PluginID, set.Cmd.ID, set.Cmd.Cmd)
 			if execCommand {
-				out, err := set.Cmd.Cmd.CombinedOutput()
+				c := set.Cmd.Cmd
+
+				stdout, err := c.StdoutPipe()
 				if err != nil {
+					fmt.Fprint(outputFile, err)
+				}
+
+				stderr, err := c.StderrPipe()
+				if err != nil {
+					fmt.Fprint(outputFile, err)
+				}
+
+				if err := c.Run(); err != nil {
 					fmt.Fprintf(outputFile, "[%s][%s] Non zero error code returned\n", set.PluginID, set.Cmd.ID)
 					fmt.Fprintf(outputFile, "[%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID)
-					fmt.Fprintf(outputFile, "%s\n", out)
+					io.Copy(outputFile, stdout)
+					io.Copy(outputFile, stderr)
 					fmt.Fprintf(outputFile, "[%s][%s] ## Exiting ##\n", set.PluginID, set.Cmd.ID)
 					cancel()
 					os.Exit(1)
 				}
 				fmt.Fprintf(outputFile, "[%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID)
-				fmt.Fprintf(outputFile, "%s\n", out)
+				io.Copy(outputFile, stdout)
 				fmt.Fprintf(outputFile, "[%s][%s] ## Done ##\n", set.PluginID, set.Cmd.ID)
 			}
 			if err := command.ExecuteCommands(newctx, types.RunAfter, set, outputFile); err != nil {

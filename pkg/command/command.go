@@ -2,6 +2,7 @@ package command
 
 import (
 	"build-commands/pkg/config"
+	"build-commands/pkg/output"
 	"build-commands/pkg/types"
 	"context"
 	"fmt"
@@ -102,7 +103,8 @@ func GetBuilds(filename string, buildFilter map[string]bool) ([]*Build, map[stri
 // 	return vars
 // }
 
-func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File) error {
+func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File) ([]*output.CommandResult, error) {
+	res := []*output.CommandResult{}
 	var wg sync.WaitGroup
 	for _, c := range set.OperatingCmds {
 		if c.Mode != m {
@@ -113,16 +115,24 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 		timeout, err := time.ParseDuration(c.Timeout)
 		if err != nil {
-			return err
+			return res, err
 		}
 		newctx, cancel := context.WithTimeout(ctx, timeout)
 		cmd := exec.Command(c.Command, c.Args...)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return res, err
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return res, err
+		}
 		fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
 			if err := cmd.Run(); err != nil {
 				cancel()
-				return err
+				return res, err
 			}
 		case types.RunWhile:
 			wg.Add(1)
@@ -152,17 +162,17 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			}()
 		default:
 			cancel()
-			return fmt.Errorf("mode %q not found", m)
+			return res, fmt.Errorf("mode %q not found", m)
 		}
 
 		if c.Buffer != "" {
 			d, err := time.ParseDuration(c.Buffer)
 			if err != nil {
 				cancel()
-				return err
+				return res, err
 			}
 			time.Sleep(d)
 		}
 	}
-	return nil
+	return res, nil
 }
