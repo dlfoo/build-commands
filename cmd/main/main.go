@@ -2,6 +2,10 @@ package main
 
 import (
 	"build-commands/pkg/command"
+	o "build-commands/pkg/output"
+	"encoding/json"
+	"sync"
+
 	"build-commands/pkg/config"
 	"build-commands/pkg/types"
 	"context"
@@ -202,6 +206,9 @@ func main() {
 		// }
 		defer f.Close()
 	}
+
+	results := make(map[string][]*o.CommandResult)
+
 	for _, b := range builds {
 		if len(specifiedBuilds) > 0 {
 			if _, ok := specifiedBuilds[b.Name()]; !ok {
@@ -209,9 +216,20 @@ func main() {
 			}
 		}
 
+		results[b.Name()] = []*o.CommandResult{}
+
+		recv := make(chan *o.CommandResult)
+		go func() {
+			for r := range recv {
+				results[b.Name()] = append(results[b.Name()], r)
+			}
+		}()
+
 		if err := command.Verify(buildDir, b); err != nil {
 			log.Fatal(err)
 		}
+
+		wg := sync.WaitGroup{}
 
 		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 
@@ -220,12 +238,16 @@ func main() {
 			fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
 			fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			newctx, cancel := context.WithCancel(ctx)
-			if err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile); err != nil {
+			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, recv)
+			if err != nil {
 				cancel()
 				break
 			}
+			wg.Add(1)
 			go func() {
-				if err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile); err != nil {
+				defer wg.Done()
+				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, recv)
+				if err != nil {
 					cancel()
 				}
 			}()
@@ -257,12 +279,20 @@ func main() {
 				io.Copy(outputFile, stdout)
 				fmt.Fprintf(outputFile, "[%s][%s] ## Done ##\n", set.PluginID, set.Cmd.ID)
 			}
-			if err := command.ExecuteCommands(newctx, types.RunAfter, set, outputFile); err != nil {
+			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, recv)
+			if err != nil {
 				cancel()
 				break
 			}
 			cancel()
 		}
+		wg.Wait()
+		close(recv)
 	}
+	b, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
 	log.Print("done")
 }

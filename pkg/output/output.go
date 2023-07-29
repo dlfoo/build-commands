@@ -37,6 +37,7 @@ type CommandResult struct {
 	Stdout   string `json:"std_out"`
 	Stderr   string `json:"std_err"`
 	ExitCode int    `json:"exit_code"`
+	Pid      int    `json:"pid"`
 }
 
 func (o *Output) Infof(format string, a ...interface{}) {

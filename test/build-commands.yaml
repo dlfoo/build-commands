@@ -24,6 +24,15 @@ builds:
       - remote
       args:
         - --my-arg1 stuff
+- name: canary
+  kustomize:
+    profiles:
+    - fail
+    build:
+    - templatePath: apps/us-west-a/prod
+      generatedPath: generated/us-west-a/prod
+      profiles:
+      - remote
 - name: from-template
   parent: dev
   import_type: merge
@@ -61,6 +70,16 @@ profiles:
     commands:
     - command: "sleep"
       args: ["60"]
+      mode: "while"
+      buffer: "2s"
+      timeout: "30s"
+    envs:
+      "my_var": "my-value"
+      "another_var": "another-value"
+  fail:
+    commands:
+    - command: "sleep"
+      args: ["failnow"]
       mode: "while"
       buffer: "2s"
       timeout: "30s"

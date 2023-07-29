@@ -6,6 +6,7 @@ import (
 	"build-commands/pkg/types"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -103,8 +104,7 @@ func Verify(filename string, b *Build) error {
 // 	return vars
 // }
 
-func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File) ([]*output.CommandResult, error) {
-	res := []*output.CommandResult{}
+func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, resultReceiver chan *output.CommandResult) error {
 	var wg sync.WaitGroup
 	for _, c := range set.OperatingCmds {
 		if c.Mode != m {
@@ -115,62 +115,120 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 		timeout, err := time.ParseDuration(c.Timeout)
 		if err != nil {
-			return res, err
+			return err
 		}
 		newctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		cmd := exec.Command(c.Command, c.Args...)
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			return res, err
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			return res, err
-		}
+
 		fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
-			if err := cmd.Run(); err != nil {
+			result := &output.CommandResult{
+				Command: cmd.String(),
+			}
+
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				fmt.Fprint(outputFile, err)
+			}
+
+			stderr, err := cmd.StderrPipe()
+			if err != nil {
+				fmt.Fprint(outputFile, err)
+			}
+
+			_, err = cmd.Output()
+			if err != nil {
+				eErr := err.(*exec.ExitError)
+				result.ExitCode = eErr.ExitCode()
+				result.Pid = eErr.Pid()
+			}
+
+			bOut, err := io.ReadAll(stdout)
+			if err != nil {
 				return err
 			}
+
+			bErr, err := io.ReadAll(stderr)
+			if err != nil {
+				return err
+			}
+
+			result.Stdout = string(bOut)
+			result.Stderr = string(bErr)
+			resultReceiver <- result
+
 		case types.RunWhile:
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err := cmd.Start()
+
+				result := &output.CommandResult{
+					Command: cmd.String(),
+				}
+
+				stdout, err := cmd.StdoutPipe()
 				if err != nil {
+					fmt.Fprint(outputFile, err)
+				}
+
+				stderr, err := cmd.StderrPipe()
+				if err != nil {
+					fmt.Fprint(outputFile, err)
+				}
+
+				if err := cmd.Start(); err != nil {
 					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 					return
 				}
+
 				go func() {
 					<-newctx.Done()
-					fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
-					if err := cmd.Process.Signal(os.Interrupt); err != nil {
-						log.Printf("got err interrupting %v", err)
+					if cmd.ProcessState == nil {
+						fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+						if err := cmd.Process.Signal(os.Interrupt); err != nil {
+							log.Printf("got err interrupting %v", err)
+						}
+						result.ExitCode = 130
 					}
 				}()
 
-				st, err := cmd.Process.Wait()
+				bOut, err := io.ReadAll(stdout)
 				if err != nil {
-					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned %s upon exit with process state %s\n", set.PluginID, set.Cmd.ID, m, cmd.String(), err, st)
-					return
+					log.Print(err)
 				}
+
+				bErr, err := io.ReadAll(stderr)
+				if err != nil {
+					log.Print(err)
+				}
+
+				if err := cmd.Wait(); err != nil {
+					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned %s upon exit with process state %q\n", set.PluginID, set.Cmd.ID, m, cmd.String(), err, cmd.ProcessState)
+				}
+
+				result.Stderr = string(bErr)
+				result.Stdout = string(bOut)
+				result.Pid = cmd.Process.Pid
+				if cmd.ProcessState != nil {
+					result.ExitCode = cmd.ProcessState.ExitCode()
+				}
+				resultReceiver <- result
 			}()
 		default:
-			cancel()
-			return res, fmt.Errorf("mode %q not found", m)
+			return fmt.Errorf("mode %q not found", m)
 		}
 
 		if c.Buffer != "" {
 			d, err := time.ParseDuration(c.Buffer)
 			if err != nil {
-				cancel()
-				return res, err
+				return err
 			}
 			<-time.After(d)
 		}
 	}
 	wg.Wait()
+
 	return nil
 }
