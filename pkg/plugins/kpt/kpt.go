@@ -60,7 +60,7 @@ func (k *KptConfig) Verify(currentDir string) error {
 			c.initalised = true
 		}
 		if !c.initalised {
-			o.Infof("Kpt Kptfile or resourcegroup.yaml file was not found in dir: %s, will add kpt pkg init command.", c.Path)
+			o.Infof("Kptfile or resourcegroup.yaml file was not found in dir: %s, will add kpt pkg init command.", c.Path)
 		}
 	}
 	return nil

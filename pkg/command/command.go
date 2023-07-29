@@ -32,7 +32,7 @@ func (b *Build) GetCommands(baseDir string, profiles types.Profiles) []*types.Bu
 	return commandSets
 }
 
-func GetBuilds(filename string, buildFilter map[string]bool) ([]*Build, map[string]*types.Profile, error) {
+func GetBuilds(filename string) ([]*Build, map[string]*types.Profile, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, nil, err
@@ -77,16 +77,16 @@ func GetBuilds(filename string, buildFilter map[string]bool) ([]*Build, map[stri
 		}
 	}
 
-	// Verify
-	for _, b := range builds {
-		for _, c := range b.tools {
-			if err := c.Verify(filepath.Dir(filename)); err != nil {
-				return nil, nil, err
-			}
+	return builds, pfs, nil
+}
+
+func Verify(filename string, b *Build) error {
+	for _, c := range b.tools {
+		if err := c.Verify(filepath.Dir(filename)); err != nil {
+			return err
 		}
 	}
-
-	return builds, pfs, nil
+	return nil
 }
 
 // func getEnvironmentVariables(p types.Profiles) []string {
@@ -118,6 +118,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			return res, err
 		}
 		newctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
 		cmd := exec.Command(c.Command, c.Args...)
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -131,17 +132,16 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
 			if err := cmd.Run(); err != nil {
-				cancel()
-				return res, err
+				return err
 			}
 		case types.RunWhile:
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				err := cmd.Start()
 				if err != nil {
 					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
-					cancel()
-					os.Exit(1)
+					return
 				}
 				go func() {
 					<-newctx.Done()
@@ -154,11 +154,8 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 				st, err := cmd.Process.Wait()
 				if err != nil {
 					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned %s upon exit with process state %s\n", set.PluginID, set.Cmd.ID, m, cmd.String(), err, st)
-					cancel()
-					os.Exit(1)
+					return
 				}
-				cancel()
-				wg.Done()
 			}()
 		default:
 			cancel()
@@ -171,8 +168,9 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 				cancel()
 				return res, err
 			}
-			time.Sleep(d)
+			<-time.After(d)
 		}
 	}
-	return res, nil
+	wg.Wait()
+	return nil
 }
