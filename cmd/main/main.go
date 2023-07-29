@@ -23,11 +23,12 @@ var (
 	//buildNames      = flag.String("builds", "", "Only build commands for the specified builds, comma separated")
 	specifiedBuilds map[string]bool
 
-	buildNames  string
-	output      string
-	execCommand bool
-	help        bool
-	mySet       *flag.FlagSet
+	buildNames       string
+	output           string
+	execCommand      bool
+	outputFormatJSON bool
+	help             bool
+	mySet            *flag.FlagSet
 )
 
 func init() {
@@ -36,6 +37,7 @@ func init() {
 	mySet.StringVar(&buildNames, "builds", "", "Only build commands for the specified builds, comma separated")
 	mySet.StringVar(&output, "output", "", "write commands to the specified file instead of stdout")
 	mySet.BoolVar(&execCommand, "exec", false, "execute commands on the machine")
+	mySet.BoolVar(&outputFormatJSON, "json", false, "output only JSON")
 	mySet.BoolVar(&help, "help", false, "show example config file")
 	if len(os.Args) > 2 {
 		if err := mySet.Parse(os.Args[2:]); err != nil {
@@ -168,7 +170,6 @@ func main() {
 		if stat.IsDir() {
 			buildDir = fmt.Sprintf("%s/build-commands.yaml", buildDir)
 		}
-		fmt.Printf("using: %s\n", buildDir)
 	}
 
 	if buildNames != "" {
@@ -229,15 +230,18 @@ func main() {
 		}
 
 		wg := sync.WaitGroup{}
-
-		fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
+		if !outputFormatJSON {
+			fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
+		}
 
 		sets := b.GetCommands(filepath.Dir(buildDir), profiles)
 		for _, set := range sets {
-			fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
-			fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
+			if !outputFormatJSON {
+				fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
+				fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
+			}
 			newctx, cancel := context.WithCancel(ctx)
-			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, recv)
+			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv)
 			if err != nil {
 				log.Print(err)
 				cancel()
@@ -246,15 +250,14 @@ func main() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, recv)
+				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, outputFormatJSON, recv)
 				if err != nil {
 					cancel()
 				}
 			}()
 
-			fmt.Fprintf(outputFile, "[%s][%s] %s\n", set.PluginID, set.Cmd.ID, set.Cmd.Cmd)
 			if execCommand {
-				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, recv)
+				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv)
 				if err != nil {
 					cancel()
 					break
@@ -285,7 +288,7 @@ func main() {
 				// io.Copy(outputFile, stdout)
 				// fmt.Fprintf(outputFile, "[%s][%s] ## Done ##\n", set.PluginID, set.Cmd.ID)
 			}
-			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, recv)
+			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, outputFormatJSON, recv)
 			if err != nil {
 				cancel()
 				break
@@ -295,9 +298,11 @@ func main() {
 		wg.Wait()
 		close(recv)
 	}
-	b, err := json.MarshalIndent(results, "", "  ")
-	if err != nil {
-		log.Fatal(err)
+	if outputFormatJSON {
+		b, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(string(b))
 	}
-	fmt.Println(string(b))
 }

@@ -134,8 +134,11 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	return result, err
 }
 
-func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, resultReceiver chan *output.CommandResult) error {
+func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, outputJSON bool, resultReceiver chan *output.CommandResult) error {
 	if m == types.RunMain {
+		if !outputJSON {
+			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, set.Cmd.Cmd.String())
+		}
 		result, err := runCommandBasic(set.Cmd.Cmd)
 		if err != nil {
 			return err
@@ -158,8 +161,9 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		newctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		cmd := exec.Command(c.Command, c.Args...)
-
-		fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+		if !outputJSON {
+			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+		}
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
 			result, err := runCommandBasic(cmd)
@@ -178,23 +182,24 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 
 				stdout, err := cmd.StdoutPipe()
 				if err != nil {
-					fmt.Fprint(outputFile, err)
+					log.Fatal(err)
 				}
 
 				stderr, err := cmd.StderrPipe()
 				if err != nil {
-					fmt.Fprint(outputFile, err)
+					log.Fatal(err)
 				}
 
 				if err := cmd.Start(); err != nil {
-					fmt.Fprintf(outputFile, "[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
-					return
+					log.Fatalf("[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 				}
 
 				go func() {
 					<-newctx.Done()
 					if cmd.ProcessState == nil {
-						fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+						if !outputJSON {
+							fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+						}
 						if err := cmd.Process.Signal(os.Interrupt); err != nil {
 							log.Printf("got err interrupting %v", err)
 						}
