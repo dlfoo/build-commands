@@ -220,11 +220,12 @@ func main() {
 			fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			newctx, cancel := context.WithCancel(ctx)
 			if err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile); err != nil {
-				log.Fatal(err)
+				cancel()
+				break
 			}
 			go func() {
 				if err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile); err != nil {
-					log.Fatal(err)
+					cancel()
 				}
 			}()
 
@@ -237,17 +238,18 @@ func main() {
 					fmt.Fprintf(outputFile, "%s\n", out)
 					fmt.Fprintf(outputFile, "[%s][%s] ## Exiting ##\n", set.PluginID, set.Cmd.ID)
 					cancel()
-					os.Exit(1)
+					break
 				}
 				fmt.Fprintf(outputFile, "[%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID)
 				fmt.Fprintf(outputFile, "%s\n", out)
 				fmt.Fprintf(outputFile, "[%s][%s] ## Done ##\n", set.PluginID, set.Cmd.ID)
 			}
 			if err := command.ExecuteCommands(newctx, types.RunAfter, set, outputFile); err != nil {
-				log.Fatal(err)
+				cancel()
+				break
 			}
 			cancel()
 		}
-
 	}
+	log.Print("done")
 }
