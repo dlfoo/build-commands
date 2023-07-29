@@ -105,7 +105,42 @@ func Verify(filename string, b *Build) error {
 // 	return vars
 // }
 
+func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
+	result := &output.CommandResult{
+		Command: cmd.String(),
+	}
+
+	stderr := new(bytes.Buffer)
+
+	cmd.Stderr = stderr
+
+	stdout, err := cmd.Output()
+	if err != nil {
+		eErr := err.(*exec.ExitError)
+		result.ExitCode = eErr.ExitCode()
+		result.Pid = eErr.Pid()
+	}
+
+	bErr, err := io.ReadAll(stderr)
+	if err != nil {
+		return result, err
+	}
+
+	result.Stdout = string(stdout)
+	result.Stderr = string(bErr)
+	result.Pid = cmd.Process.Pid
+	return result, nil
+}
+
 func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, resultReceiver chan *output.CommandResult) error {
+	if m == types.RunMain {
+		result, err := runCommandBasic(set.Cmd.Cmd)
+		if err != nil {
+			return err
+		}
+		resultReceiver <- result
+		return nil
+	}
 	var wg sync.WaitGroup
 	for _, c := range set.OperatingCmds {
 		if c.Mode != m {
@@ -125,31 +160,11 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
-			result := &output.CommandResult{
-				Command: cmd.String(),
-			}
-
-			stderr := new(bytes.Buffer)
-
-			cmd.Stderr = stderr
-
-			stdout, err := cmd.Output()
-			if err != nil {
-				eErr := err.(*exec.ExitError)
-				result.ExitCode = eErr.ExitCode()
-				result.Pid = eErr.Pid()
-			}
-
-			bErr, err := io.ReadAll(stderr)
+			result, err := runCommandBasic(cmd)
 			if err != nil {
 				return err
 			}
-
-			result.Stdout = string(stdout)
-			result.Stderr = string(bErr)
-			result.Pid = cmd.Process.Pid
 			resultReceiver <- result
-
 		case types.RunWhile:
 			wg.Add(1)
 			go func() {
@@ -218,7 +233,5 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 	}
 	wg.Wait()
-	log.Print("done")
-
 	return nil
 }

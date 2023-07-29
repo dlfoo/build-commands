@@ -8,6 +8,7 @@ const (
 	RunBefore CommandRunMode = "before"
 	RunWhile  CommandRunMode = "while"
 	RunAfter  CommandRunMode = "after"
+	RunMain   CommandRunMode = "main"
 )
 
 type BasicCommand struct {
