@@ -118,7 +118,6 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	if err != nil {
 		eErr := err.(*exec.ExitError)
 		result.ExitCode = eErr.ExitCode()
-		result.Pid = eErr.Pid()
 	}
 
 	bErr, err := io.ReadAll(stderr)
@@ -129,7 +128,10 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	result.Stdout = string(stdout)
 	result.Stderr = string(bErr)
 	result.Pid = cmd.Process.Pid
-	return result, nil
+	if cmd.ProcessState != nil {
+		result.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	return result, err
 }
 
 func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, resultReceiver chan *output.CommandResult) error {
