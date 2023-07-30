@@ -88,6 +88,11 @@ profiles:
       mode: "while"
       buffer: "2s"
       timeout: "30s"
+    - command: "echo"
+      args: ["hello_world"]
+      mode: "before"
+      buffer: "2s"
+      timeout: "30s"
     envs:
       "my_var": "my-value"
       "another_var": "another-value"

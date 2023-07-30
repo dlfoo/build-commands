@@ -4,6 +4,7 @@ import (
 	"build-commands/pkg/output"
 	"build-commands/pkg/types"
 	"build-commands/pkg/util"
+	"context"
 	"fmt"
 	"io/fs"
 	"os/exec"
@@ -64,13 +65,13 @@ func (k *KustomizeConfig) Verify(currentDir string) error {
 	return nil
 }
 
-func (k *KustomizeConfig) Commands(baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
+func (k *KustomizeConfig) Commands(ctx context.Context, baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
 	commands := []*types.BuildCommandSet{}
 	for _, b := range k.Build {
 		if b.needsGeneratedPath {
 			commands = append(commands, &types.BuildCommandSet{PluginID: k.ID(), Cmd: &types.BuildCommand{ID: mkdirCmdID, Cmd: exec.Command("mkdir", "-p", filepath.Join(baseDir, b.GeneratedPath))}})
 		}
-		cmd := &types.BuildCommand{ID: buildCmdID, Cmd: exec.Command("kustomize", "build", filepath.Join(baseDir, b.TemplatePath), "-o", filepath.Join(baseDir, b.GeneratedPath))}
+		cmd := &types.BuildCommand{ID: buildCmdID, Cmd: exec.CommandContext(ctx, "kustomize", "build", filepath.Join(baseDir, b.TemplatePath), "-o", filepath.Join(baseDir, b.GeneratedPath))}
 		cmd.Cmd.Args = append(cmd.Cmd.Args, util.ParseArgs(k.Args, b.Args)...)
 		cmd.Cmd.Env = append(cmd.Cmd.Env, util.GetProfileEnvs(profiles, k.Profiles, b.Profiles)...)
 		commands = append(commands, &types.BuildCommandSet{PluginID: k.ID(), Cmd: cmd, OperatingCmds: util.GetProfilesCommands(profiles, k.Profiles, b.Profiles)})

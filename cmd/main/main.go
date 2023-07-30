@@ -244,13 +244,13 @@ func main() {
 			fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 		}
 
-		sets := b.GetCommands(filepath.Dir(buildDir), profiles)
+		newctx, cancel := context.WithCancel(ctx)
+		sets := b.GetCommands(newctx, filepath.Dir(buildDir), profiles)
 		for _, set := range sets {
 			if !outputFormatJSON {
 				fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
 				fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			}
-			newctx, cancel := context.WithCancel(ctx)
 			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv)
 			if err != nil {
 				log.Print(err)

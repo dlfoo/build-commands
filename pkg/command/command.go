@@ -6,6 +6,7 @@ import (
 	"build-commands/pkg/types"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,10 +27,10 @@ func (b *Build) Name() string {
 	return b.bc.Name
 }
 
-func (b *Build) GetCommands(baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
+func (b *Build) GetCommands(ctx context.Context, baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
 	commandSets := []*types.BuildCommandSet{}
 	for _, tool := range b.tools {
-		commandSets = append(commandSets, tool.Commands(baseDir, profiles)...)
+		commandSets = append(commandSets, tool.Commands(ctx, baseDir, profiles)...)
 	}
 	return commandSets
 }
@@ -91,20 +92,6 @@ func Verify(filename string, b *Build) error {
 	return nil
 }
 
-// func getEnvironmentVariables(p types.Profiles) []string {
-// 	vars := os.Environ()
-// 	envMap := map[string]string{}
-// 	for _, profile := range p {
-// 		for name, value := range profile.Envs {
-// 			envMap[name] = fmt.Sprintf("%s=%s", strings.ToUpper(name), value)
-// 		}
-// 	}
-// 	for _, entry := range envMap {
-// 		vars = append(vars, entry)
-// 	}
-// 	return vars
-// }
-
 func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	result := &output.CommandResult{
 		Command: cmd.String(),
@@ -116,8 +103,19 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 
 	stdout, err := cmd.Output()
 	if err != nil {
-		eErr := err.(*exec.ExitError)
+		eErr, ok := err.(*exec.ExitError)
+		if !ok {
+			if errors.Is(err, context.Canceled) {
+				return nil, nil
+			}
+			log.Fatal(err)
+		}
 		result.ExitCode = eErr.ExitCode()
+		result.Pid = eErr.Pid()
+		bErr, _ := io.ReadAll(stderr)
+		result.Stdout = string(stdout)
+		result.Stderr = string(bErr)
+		return result, err
 	}
 
 	bErr, err := io.ReadAll(stderr)
@@ -153,6 +151,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		return nil
 	}
 	var wg sync.WaitGroup
+	var cancelErr error
 	for _, c := range set.OperatingCmds {
 		if c.Mode != m {
 			continue
@@ -166,7 +165,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 		newctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		cmd := exec.Command(c.Command, c.Args...)
+		cmd := exec.CommandContext(newctx, c.Command, c.Args...)
 		if !outputJSON {
 			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
 		}
@@ -186,55 +185,10 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-
-				result := &output.CommandResult{
-					Command: cmd.String(),
-				}
-
-				stdout, err := cmd.StdoutPipe()
+				result, err := runCommandBasic(cmd)
 				if err != nil {
-					log.Fatal(err)
-				}
-
-				stderr, err := cmd.StderrPipe()
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				if err := cmd.Start(); err != nil {
-					log.Fatalf("[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
-				}
-
-				go func() {
-					<-newctx.Done()
-					if cmd.ProcessState == nil {
-						if !outputJSON {
-							fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
-						}
-						if err := cmd.Process.Signal(os.Interrupt); err != nil {
-							log.Printf("got err interrupting %v", err)
-						}
-						result.ExitCode = 130
-					}
-				}()
-
-				bOut, err := io.ReadAll(stdout)
-				if err != nil {
-					log.Print(err)
-				}
-
-				bErr, err := io.ReadAll(stderr)
-				if err != nil {
-					log.Print(err)
-				}
-
-				cmd.Wait()
-
-				result.Stderr = string(bErr)
-				result.Stdout = string(bOut)
-				result.Pid = cmd.Process.Pid
-				if cmd.ProcessState != nil {
-					result.ExitCode = cmd.ProcessState.ExitCode()
+					cancelErr = err
+					cancel()
 				}
 				if !outputJSON {
 					fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
@@ -242,6 +196,61 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 					fmt.Fprint(outputFile, result.Stderr)
 				}
 				resultReceiver <- result
+
+				// result := &output.CommandResult{
+				// 	Command: cmd.String(),
+				// }
+
+				// stdout, err := cmd.StdoutPipe()
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+
+				// stderr, err := cmd.StderrPipe()
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+
+				// if err := cmd.Start(); err != nil {
+				// 	log.Fatalf("[%s][%s][%s] %s returned err upon start\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+				// }
+
+				// go func() {
+				// 	<-newctx.Done()
+				// 	if cmd.ProcessState == nil {
+				// 		if !outputJSON {
+				// 			fmt.Fprintf(outputFile, "[%s][%s][%s] stopping %s\n", set.PluginID, set.Cmd.ID, m, cmd.String())
+				// 		}
+				// 		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				// 			log.Printf("got err interrupting %v", err)
+				// 		}
+				// 		result.ExitCode = 130
+				// 	}
+				// }()
+
+				// bOut, err := io.ReadAll(stdout)
+				// if err != nil {
+				// 	log.Print(err)
+				// }
+
+				// bErr, err := io.ReadAll(stderr)
+				// if err != nil {
+				// 	log.Print(err)
+				// }
+
+				// cmd.Wait()
+
+				// result.Stderr = string(bErr)
+				// result.Stdout = string(bOut)
+				// result.Pid = cmd.Process.Pid
+				// if cmd.ProcessState != nil {
+				// 	result.ExitCode = cmd.ProcessState.ExitCode()
+				// }
+				// if !outputJSON {
+				// 	fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
+				// 	fmt.Fprint(outputFile, result.Stdout)
+				// 	fmt.Fprint(outputFile, result.Stderr)
+				// }
 			}()
 		default:
 			return fmt.Errorf("mode %q not found", m)
@@ -256,5 +265,6 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 	}
 	wg.Wait()
-	return nil
+
+	return cancelErr
 }

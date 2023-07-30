@@ -1,7 +1,9 @@
 package types
 
+import "context"
+
 type Plugin interface {
 	Verify(string) error
-	Commands(string, Profiles) []*BuildCommandSet
+	Commands(context.Context, string, Profiles) []*BuildCommandSet
 	ID() string
 }

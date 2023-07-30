@@ -4,6 +4,7 @@ import (
 	"build-commands/pkg/output"
 	"build-commands/pkg/types"
 	"build-commands/pkg/util"
+	"context"
 	"fmt"
 	"io/fs"
 	"os/exec"
@@ -66,7 +67,7 @@ func (k *KptConfig) Verify(currentDir string) error {
 	return nil
 }
 
-func (k *KptConfig) Commands(baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
+func (k *KptConfig) Commands(ctx context.Context, baseDir string, profiles types.Profiles) []*types.BuildCommandSet {
 	commands := []*types.BuildCommandSet{}
 	for _, b := range k.Apply {
 		if !b.initalised {
@@ -74,7 +75,7 @@ func (k *KptConfig) Commands(baseDir string, profiles types.Profiles) []*types.B
 		}
 		cmd := &types.BuildCommand{
 			ID:  applyCmdID,
-			Cmd: exec.Command("kpt", "live", "apply", filepath.Join(baseDir, string(b.Path))),
+			Cmd: exec.CommandContext(ctx, "kpt", "live", "apply", filepath.Join(baseDir, string(b.Path))),
 		}
 		cmd.Cmd.Args = append(cmd.Cmd.Args, util.ParseArgs(k.Args, b.Args)...)
 		cmd.Cmd.Env = append(cmd.Cmd.Env, util.GetProfileEnvs(profiles, k.Profiles, b.Profiles)...)
