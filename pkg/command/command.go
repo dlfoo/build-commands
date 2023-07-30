@@ -143,6 +143,12 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		if err != nil {
 			return err
 		}
+		if !outputJSON {
+			fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
+			fmt.Fprint(outputFile, result.Stdout)
+			fmt.Fprint(outputFile, result.Stderr)
+		}
+
 		resultReceiver <- result
 		return nil
 	}
@@ -169,6 +175,11 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			result, err := runCommandBasic(cmd)
 			if err != nil {
 				return err
+			}
+			if !outputJSON {
+				fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
+				fmt.Fprint(outputFile, result.Stdout)
+				fmt.Fprint(outputFile, result.Stderr)
 			}
 			resultReceiver <- result
 		case types.RunWhile:
@@ -224,6 +235,11 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 				result.Pid = cmd.Process.Pid
 				if cmd.ProcessState != nil {
 					result.ExitCode = cmd.ProcessState.ExitCode()
+				}
+				if !outputJSON {
+					fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
+					fmt.Fprint(outputFile, result.Stdout)
+					fmt.Fprint(outputFile, result.Stderr)
 				}
 				resultReceiver <- result
 			}()
