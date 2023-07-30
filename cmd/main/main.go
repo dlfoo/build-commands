@@ -272,31 +272,6 @@ func main() {
 					cancel()
 					break
 				}
-
-				// c := set.Cmd.Cmd
-
-				// stdout, err := c.StdoutPipe()
-				// if err != nil {
-				// 	fmt.Fprint(outputFile, err)
-				// }
-
-				// stderr, err := c.StderrPipe()
-				// if err != nil {
-				// 	fmt.Fprint(outputFile, err)
-				// }
-
-				// if err := c.Run(); err != nil {
-				// 	fmt.Fprintf(outputFile, "[%s][%s] Non zero error code returned\n", set.PluginID, set.Cmd.ID)
-				// 	fmt.Fprintf(outputFile, "[%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID)
-				// 	io.Copy(outputFile, stdout)
-				// 	io.Copy(outputFile, stderr)
-				// 	fmt.Fprintf(outputFile, "[%s][%s] ## Exiting ##\n", set.PluginID, set.Cmd.ID)
-				// 	cancel()
-				// 	break
-				// }
-				// fmt.Fprintf(outputFile, "[%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID)
-				// io.Copy(outputFile, stdout)
-				// fmt.Fprintf(outputFile, "[%s][%s] ## Done ##\n", set.PluginID, set.Cmd.ID)
 			}
 			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, outputFormatJSON, recv)
 			if err != nil {
