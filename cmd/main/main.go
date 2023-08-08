@@ -4,6 +4,7 @@ import (
 	"build-commands/pkg/command"
 	o "build-commands/pkg/output"
 	"encoding/json"
+	"sort"
 	"sync"
 
 	"build-commands/pkg/config"
@@ -28,6 +29,7 @@ var (
 	execCommand      bool
 	outputFormatJSON bool
 	streamResults    bool
+	list             bool
 	help             bool
 	mySet            *flag.FlagSet
 )
@@ -38,6 +40,7 @@ func init() {
 	mySet.StringVar(&buildNames, "builds", "", "Only build commands for the specified builds, comma separated")
 	mySet.StringVar(&output, "output", "", "write commands to the specified file instead of stdout")
 	mySet.BoolVar(&execCommand, "exec", false, "execute commands on the machine")
+	mySet.BoolVar(&list, "list", false, "list all builds associated with the config")
 	mySet.BoolVar(&outputFormatJSON, "json", false, "output only JSON")
 	mySet.BoolVar(&streamResults, "stream", false, "output a stream of results in JSON")
 	mySet.BoolVar(&help, "help", false, "show example config file")
@@ -153,7 +156,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if buildNames == "" {
+	if buildNames == "" && !list {
 		log.Print("'--builds' flag shouldn't be nil")
 		os.Exit(1)
 	}
@@ -207,6 +210,29 @@ func main() {
 		// 	fmt.Fprintln(f, command)
 		// }
 		defer f.Close()
+	}
+
+	if list {
+		names := []string{}
+		for _, b := range builds {
+			names = append(names, b.Name())
+		}
+
+		sort.Strings(names)
+
+		switch {
+		case outputFormatJSON:
+			b, err := json.MarshalIndent(names, "", "  ")
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Fprintf(outputFile, "%s\n", b)
+		default:
+			for _, n := range names {
+				fmt.Fprintf(outputFile, "%s\n", n)
+			}
+		}
+		os.Exit(0)
 	}
 
 	streamer := json.NewEncoder(outputFile)
