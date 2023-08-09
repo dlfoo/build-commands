@@ -32,13 +32,21 @@ type Output struct {
 	plugin types.Plugin
 }
 
+type CommandResultStatus string
+
+const (
+	CommandResultStatusRunning CommandResultStatus = "running"
+	CommandResultStatusStopped CommandResultStatus = "stopped"
+)
+
 type CommandResult struct {
-	Build    string `json:"build"`
-	Command  string `json:"command"`
-	Stdout   string `json:"std_out"`
-	Stderr   string `json:"std_err"`
-	ExitCode int    `json:"exit_code"`
-	Pid      int    `json:"pid"`
+	Status   CommandResultStatus `json:"status"`
+	Build    string              `json:"build"`
+	Command  string              `json:"command"`
+	Stdout   string              `json:"std_out"`
+	Stderr   string              `json:"std_err"`
+	ExitCode int                 `json:"exit_code"`
+	Pid      int                 `json:"pid"`
 }
 
 func (o *Output) Infof(format string, a ...interface{}) {

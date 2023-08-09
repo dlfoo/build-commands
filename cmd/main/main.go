@@ -277,29 +277,33 @@ func main() {
 				fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
 				fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			}
-			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv)
+			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv, nil)
 			if err != nil {
-				log.Print(err)
 				cancel()
 				break
 			}
 			wg.Add(1)
+			whileStarted := make(chan bool)
 			go func() {
 				defer wg.Done()
-				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, outputFormatJSON, recv)
+				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, outputFormatJSON, recv, whileStarted)
 				if err != nil {
 					cancel()
 				}
 			}()
 
+			<-whileStarted
+
+			//time.Sleep(5 * time.Second)
+
 			if execCommand {
-				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv)
+				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv, nil)
 				if err != nil {
 					cancel()
 					break
 				}
 			}
-			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, outputFormatJSON, recv)
+			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, outputFormatJSON, recv, nil)
 			if err != nil {
 				cancel()
 				break

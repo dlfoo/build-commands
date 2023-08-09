@@ -6,7 +6,6 @@ import (
 	"build-commands/pkg/types"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -105,10 +104,7 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	if err != nil {
 		eErr, ok := err.(*exec.ExitError)
 		if !ok {
-			if errors.Is(err, context.Canceled) {
-				return nil, nil
-			}
-			log.Fatal(err)
+			return nil, err
 		}
 		result.ExitCode = eErr.ExitCode()
 		result.Pid = eErr.Pid()
@@ -132,12 +128,64 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	return result, err
 }
 
-func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, outputJSON bool, resultReceiver chan *output.CommandResult) error {
+func runCommandComplex(cmd *exec.Cmd) (*output.CommandResult, error) {
+	result := &output.CommandResult{
+		Command: cmd.String(),
+	}
+
+	stderr := new(bytes.Buffer)
+
+	stdout := new(bytes.Buffer)
+
+	cmd.Stderr = stderr
+	cmd.Stdout = stdout
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	log.Printf("running C")
+
+	err := cmd.Wait()
+	if err != nil {
+		eErr, ok := err.(*exec.ExitError)
+		if !ok {
+			return nil, err
+		}
+		result.ExitCode = eErr.ExitCode()
+		result.Pid = eErr.Pid()
+		bErr, _ := io.ReadAll(stderr)
+		bOut, _ := io.ReadAll(stderr)
+		result.Stdout = string(bOut)
+		result.Stderr = string(bErr)
+		return result, err
+	}
+
+	bErr, err := io.ReadAll(stderr)
+	if err != nil {
+		return result, err
+	}
+
+	bOut, err := io.ReadAll(stdout)
+	if err != nil {
+		return result, err
+	}
+
+	result.Stdout = string(bOut)
+	result.Stderr = string(bErr)
+	result.Pid = cmd.Process.Pid
+	if cmd.ProcessState != nil {
+		result.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	return result, err
+}
+
+func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.BuildCommandSet, outputFile *os.File, outputJSON bool, resultReceiver chan *output.CommandResult, whileStarted chan bool) error {
 	if m == types.RunMain {
 		if !outputJSON {
 			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, set.Cmd.Cmd.String())
 		}
-		result, err := runCommandBasic(set.Cmd.Cmd)
+		result, err := runCommandComplex(set.Cmd.Cmd)
 		if err != nil {
 			return err
 		}
@@ -171,7 +219,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
-			result, err := runCommandBasic(cmd)
+			result, err := runCommandComplex(cmd)
 			if err != nil {
 				return err
 			}
@@ -185,7 +233,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				result, err := runCommandBasic(cmd)
+				result, err := runCommandComplex(cmd)
 				if err != nil {
 					cancelErr = err
 					cancel()
@@ -263,6 +311,9 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			}
 			<-time.After(d)
 		}
+	}
+	if whileStarted != nil {
+		whileStarted <- true
 	}
 	wg.Wait()
 
