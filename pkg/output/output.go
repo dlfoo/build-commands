@@ -40,13 +40,14 @@ const (
 )
 
 type CommandResult struct {
-	Status   CommandResultStatus `json:"status"`
-	Build    string              `json:"build"`
-	Command  string              `json:"command"`
-	Stdout   string              `json:"std_out"`
-	Stderr   string              `json:"std_err"`
-	ExitCode int                 `json:"exit_code"`
-	Pid      int                 `json:"pid"`
+	InvocationID string
+	Status       CommandResultStatus `json:"status"`
+	Build        string              `json:"build"`
+	Command      string              `json:"command"`
+	Stdout       string              `json:"std_out"`
+	Stderr       string              `json:"std_err"`
+	ExitCode     int                 `json:"exit_code"`
+	Pid          int                 `json:"pid"`
 }
 
 func (o *Output) Infof(format string, a ...interface{}) {

@@ -8,12 +8,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Build struct {
@@ -128,9 +129,12 @@ func runCommandBasic(cmd *exec.Cmd) (*output.CommandResult, error) {
 	return result, err
 }
 
-func runCommandComplex(cmd *exec.Cmd) (*output.CommandResult, error) {
+func runCommandComplex(cmd *exec.Cmd, recv chan *output.CommandResult) (*output.CommandResult, error) {
+	invID := uuid.NewString()
 	result := &output.CommandResult{
-		Command: cmd.String(),
+		InvocationID: invID,
+		Status:       output.CommandResultStatusRunning,
+		Command:      cmd.String(),
 	}
 
 	stderr := new(bytes.Buffer)
@@ -144,7 +148,7 @@ func runCommandComplex(cmd *exec.Cmd) (*output.CommandResult, error) {
 		return nil, err
 	}
 
-	log.Printf("running C")
+	recv <- result
 
 	err := cmd.Wait()
 	if err != nil {
@@ -158,6 +162,7 @@ func runCommandComplex(cmd *exec.Cmd) (*output.CommandResult, error) {
 		bOut, _ := io.ReadAll(stderr)
 		result.Stdout = string(bOut)
 		result.Stderr = string(bErr)
+		result.Status = output.CommandResultStatusStopped
 		return result, err
 	}
 
@@ -174,6 +179,7 @@ func runCommandComplex(cmd *exec.Cmd) (*output.CommandResult, error) {
 	result.Stdout = string(bOut)
 	result.Stderr = string(bErr)
 	result.Pid = cmd.Process.Pid
+	result.Status = output.CommandResultStatusStopped
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
@@ -185,7 +191,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		if !outputJSON {
 			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, set.Cmd.Cmd.String())
 		}
-		result, err := runCommandComplex(set.Cmd.Cmd)
+		result, err := runCommandComplex(set.Cmd.Cmd, resultReceiver)
 		if err != nil {
 			return err
 		}
@@ -219,7 +225,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 		}
 		switch c.Mode {
 		case types.RunBefore, types.RunAfter:
-			result, err := runCommandComplex(cmd)
+			result, err := runCommandComplex(cmd, resultReceiver)
 			if err != nil {
 				return err
 			}
@@ -233,7 +239,7 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				result, err := runCommandComplex(cmd)
+				result, err := runCommandComplex(cmd, resultReceiver)
 				if err != nil {
 					cancelErr = err
 					cancel()

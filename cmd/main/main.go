@@ -252,7 +252,9 @@ func main() {
 		go func() {
 			for r := range recv {
 				r.Build = b.Name()
-				results[b.Name()] = append(results[b.Name()], r)
+				if r.Status != o.CommandResultStatusRunning {
+					results[b.Name()] = append(results[b.Name()], r)
+				}
 				if streamResults {
 					if err := streamer.Encode(r); err != nil {
 						log.Fatal(err)
