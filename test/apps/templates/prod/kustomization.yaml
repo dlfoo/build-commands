@@ -1,13 +1,17 @@
 namePrefix: prod-
-commonLabels:
-  variant: prod
 commonAnnotations:
   note: Hello, I am prod!
   version: v1.0.0
 resources:
 - ../../base
-patchesStrategicMerge:
-- deployment.yaml
 images:
 - name: nginx
   newTag: v1.0.0
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+- includeSelectors: true
+  pairs:
+    variant: prod
+patches:
+- path: deployment.yaml
