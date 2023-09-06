@@ -275,14 +275,12 @@ func main() {
 		newctx, cancel := context.WithCancel(ctx)
 		sets := b.GetCommands(newctx, filepath.Dir(buildDir), profiles)
 		for _, set := range sets {
-			//setCtx, setCancel := context.WithCancel(newctx)
 			if !outputFormatJSON {
 				fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
 				fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			}
 			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv, nil)
 			if err != nil {
-				log.Printf("before %s: %v", set.PluginID, err)
 				cancel()
 				break
 			}
@@ -292,7 +290,6 @@ func main() {
 				defer wg.Done()
 				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, outputFormatJSON, recv, whileStarted)
 				if err != nil {
-					log.Printf("while %s: %v", set.PluginID, err)
 					cancel()
 				}
 			}()
@@ -304,18 +301,15 @@ func main() {
 			if execCommand {
 				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv, nil)
 				if err != nil {
-					log.Printf("main %s: %v", set.PluginID, err)
 					cancel()
 					break
 				}
 			}
 			err = command.ExecuteCommands(newctx, types.RunAfter, set, outputFile, outputFormatJSON, recv, nil)
 			if err != nil {
-				log.Printf("after %s: %v", set.PluginID, err)
 				cancel()
 				break
 			}
-			cancel()
 		}
 		wg.Wait()
 		close(recv)
