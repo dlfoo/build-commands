@@ -5,7 +5,6 @@ import (
 	o "build-commands/pkg/output"
 	"encoding/json"
 	"sort"
-	"sync"
 
 	"build-commands/pkg/config"
 	"build-commands/pkg/types"
@@ -17,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -56,6 +56,17 @@ func init() {
 			os.Exit(1)
 		}
 	}
+}
+
+func outputResults(results map[string][]*o.CommandResult) error {
+	if outputFormatJSON && !streamResults {
+		b, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+	}
+	return nil
 }
 
 func main() {
@@ -238,7 +249,6 @@ func main() {
 	streamer := json.NewEncoder(outputFile)
 
 	results := make(map[string][]*o.CommandResult)
-
 	for _, b := range builds {
 		if len(specifiedBuilds) > 0 {
 			if _, ok := specifiedBuilds[b.Name()]; !ok {
@@ -267,39 +277,41 @@ func main() {
 			log.Fatal(err)
 		}
 
-		wg := sync.WaitGroup{}
+		//wg := sync.WaitGroup{}
 		if !outputFormatJSON {
 			fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 		}
 
 		newctx, cancel := context.WithCancel(ctx)
+		wg, newctx := errgroup.WithContext(newctx)
 		sets := b.GetCommands(newctx, filepath.Dir(buildDir), profiles)
+		var err error
 		for _, set := range sets {
 			if !outputFormatJSON {
 				fmt.Fprintf(outputFile, "## Plugin: %s\n", set.PluginID)
 				fmt.Fprintf(outputFile, "## Command: %s\n", set.Cmd.ID)
 			}
-			err := command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv, nil)
+			err = command.ExecuteCommands(newctx, types.RunBefore, set, outputFile, outputFormatJSON, recv, nil)
 			if err != nil {
 				cancel()
 				break
 			}
-			wg.Add(1)
+
 			whileStarted := make(chan bool)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() error {
 				err := command.ExecuteCommands(newctx, types.RunWhile, set, outputFile, outputFormatJSON, recv, whileStarted)
 				if err != nil {
-					cancel()
+					return err
 				}
-			}()
+				return nil
+			})
 
 			<-whileStarted
 
 			//time.Sleep(5 * time.Second)
 
 			if execCommand {
-				err := command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv, nil)
+				err = command.ExecuteCommands(newctx, types.RunMain, set, outputFile, outputFormatJSON, recv, nil)
 				if err != nil {
 					cancel()
 					break
@@ -311,14 +323,17 @@ func main() {
 				break
 			}
 		}
-		wg.Wait()
-		close(recv)
-	}
-	if outputFormatJSON && !streamResults {
-		b, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			log.Fatal(err)
+		cancel()
+		if wgErr := wg.Wait(); wgErr != nil {
+			err = wgErr
 		}
-		fmt.Println(string(b))
+		close(recv)
+		if err != nil {
+			outputResults(results)
+			os.Exit(1)
+		}
+	}
+	if err := outputResults(results); err != nil {
+		log.Fatal(err)
 	}
 }

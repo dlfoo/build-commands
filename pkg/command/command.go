@@ -163,6 +163,9 @@ func runCommandComplex(cmd *exec.Cmd, recv chan *output.CommandResult) (*output.
 		result.Stdout = string(bOut)
 		result.Stderr = string(bErr)
 		result.Status = output.CommandResultStatusStopped
+		if result.ExitCode == -1 {
+			return result, nil
+		}
 		return result, err
 	}
 
