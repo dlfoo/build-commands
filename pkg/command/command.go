@@ -192,16 +192,17 @@ func ExecuteCommands(ctx context.Context, m types.CommandRunMode, set *types.Bui
 			fmt.Fprintf(outputFile, "[%s][%s][%s] %s\n", set.PluginID, set.Cmd.ID, m, set.Cmd.Cmd.String())
 		}
 		result, err := runCommandComplex(set.Cmd.Cmd, resultReceiver)
-		if err != nil {
-			return err
-		}
 		if !outputJSON {
 			fmt.Fprintf(outputFile, "[%s][%s][%s] ## Output ##\n", set.PluginID, set.Cmd.ID, m)
 			fmt.Fprint(outputFile, result.Stdout)
 			fmt.Fprint(outputFile, result.Stderr)
 		}
-
 		resultReceiver <- result
+
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}
 	var wg sync.WaitGroup

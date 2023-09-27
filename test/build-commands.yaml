@@ -9,6 +9,7 @@ builds:
     - templatePath: apps/us-west-a/prod
       generatedPath: generated/us-west-a/prod
   kpt:
+    args: ["--context", "kubernetes-not-gonna-work@kubernetes"]
     apply:
     - path: generated/us-west-a/prod
 - name: dev
