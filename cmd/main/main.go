@@ -250,6 +250,9 @@ func main() {
 
 	results := make(map[string][]*o.CommandResult)
 	for _, b := range builds {
+		newctx, cancel := context.WithCancel(ctx)
+		wg, newctx := errgroup.WithContext(newctx)
+
 		if len(specifiedBuilds) > 0 {
 			if _, ok := specifiedBuilds[b.Name()]; !ok {
 				continue
@@ -259,7 +262,7 @@ func main() {
 		results[b.Name()] = []*o.CommandResult{}
 
 		recv := make(chan *o.CommandResult)
-		go func() {
+		wg.Go(func() error {
 			for r := range recv {
 				r.Build = b.Name()
 				if r.Status != o.CommandResultStatusRunning {
@@ -267,11 +270,12 @@ func main() {
 				}
 				if streamResults {
 					if err := streamer.Encode(r); err != nil {
-						log.Fatal(err)
+						return err
 					}
 				}
 			}
-		}()
+			return nil
+		})
 
 		if err := command.Verify(buildDir, b); err != nil {
 			log.Fatal(err)
@@ -282,8 +286,6 @@ func main() {
 			fmt.Fprintf(outputFile, "# Build: %s\n", b.Name())
 		}
 
-		newctx, cancel := context.WithCancel(ctx)
-		wg, newctx := errgroup.WithContext(newctx)
 		sets := b.GetCommands(newctx, filepath.Dir(buildDir), profiles)
 		var err error
 		for _, set := range sets {
@@ -324,10 +326,10 @@ func main() {
 			}
 		}
 		cancel()
+		close(recv)
 		if wgErr := wg.Wait(); wgErr != nil {
 			err = wgErr
 		}
-		close(recv)
 		if err != nil {
 			outputResults(results)
 			os.Exit(1)
