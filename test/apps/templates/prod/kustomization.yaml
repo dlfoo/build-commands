@@ -1,0 +1,13 @@
+namePrefix: prod-
+commonLabels:
+  variant: prod
+commonAnnotations:
+  note: Hello, I am prod!
+  version: v1.0.0
+resources:
+- ../../base
+patchesStrategicMerge:
+- deployment.yaml
+images:
+- name: nginx
+  newTag: v1.0.0

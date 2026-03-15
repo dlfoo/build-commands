@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    note: Hello, I am prod!
+    version: v1.0.0
+  labels:
+    app: nginx
+    variant: prod
+  name: prod-nginx-deployment
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: nginx
+      variant: prod
+  template:
+    metadata:
+      annotations:
+        note: Hello, I am prod!
+        version: v1.0.0
+      labels:
+        app: nginx
+        variant: prod
+    spec:
+      containers:
+      - image: nginx:v1.0.0
+        name: nginx
+        ports:
+        - containerPort: 8080
