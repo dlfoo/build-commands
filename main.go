@@ -1,9 +1,6 @@
 package main
 
 import (
-	"build-commands/pkg/command"
-	"build-commands/pkg/config"
-	"build-commands/pkg/types"
 	"context"
 	"flag"
 	"fmt"
@@ -11,6 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dlfoo/build-commands/pkg/command"
+	"github.com/dlfoo/build-commands/pkg/config"
+	"github.com/dlfoo/build-commands/pkg/types"
 
 	"gopkg.in/yaml.v3"
 )

@@ -1,13 +1,14 @@
 package kustomize
 
 import (
-	"build-commands/pkg/output"
-	"build-commands/pkg/types"
-	"build-commands/pkg/util"
 	"fmt"
 	"io/fs"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/dlfoo/build-commands/pkg/output"
+	"github.com/dlfoo/build-commands/pkg/types"
+	"github.com/dlfoo/build-commands/pkg/util"
 )
 
 var (

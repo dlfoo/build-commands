@@ -1,8 +1,6 @@
 package command
 
 import (
-	"build-commands/pkg/config"
-	"build-commands/pkg/types"
 	"context"
 	"fmt"
 	"log"
@@ -11,6 +9,9 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/dlfoo/build-commands/pkg/config"
+	"github.com/dlfoo/build-commands/pkg/types"
 )
 
 type Build struct {
