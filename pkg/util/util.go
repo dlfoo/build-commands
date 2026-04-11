@@ -1,11 +1,12 @@
 package util
 
 import (
-	"build-commands/pkg/types"
 	"fmt"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/dlfoo/build-commands/pkg/types"
 )
 
 func GetProfiles(p types.Profiles, profileSets ...[]string) types.Profiles {

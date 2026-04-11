@@ -1,9 +1,6 @@
 package command
 
 import (
-	"build-commands/pkg/config"
-	"build-commands/pkg/output"
-	"build-commands/pkg/types"
 	"bytes"
 	"context"
 	"fmt"
@@ -13,6 +10,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/dlfoo/build-commands/pkg/config"
+	"github.com/dlfoo/build-commands/pkg/output"
+	"github.com/dlfoo/build-commands/pkg/types"
 
 	"github.com/google/uuid"
 )

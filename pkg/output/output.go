@@ -1,9 +1,10 @@
 package output
 
 import (
-	"build-commands/pkg/types"
 	"fmt"
 	"os"
+
+	"github.com/dlfoo/build-commands/pkg/types"
 )
 
 type outputFormat string

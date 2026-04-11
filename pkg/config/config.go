@@ -1,11 +1,12 @@
 package config
 
 import (
-	"build-commands/pkg/plugins/kpt"
-	"build-commands/pkg/plugins/kustomize"
-	"build-commands/pkg/types"
 	"fmt"
 	"io"
+
+	"github.com/dlfoo/build-commands/pkg/plugins/kpt"
+	"github.com/dlfoo/build-commands/pkg/plugins/kustomize"
+	"github.com/dlfoo/build-commands/pkg/types"
 
 	yaml "gopkg.in/yaml.v3"
 )

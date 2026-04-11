@@ -1,6 +1,6 @@
-module build-commands
+module github.com/dlfoo/build-commands
 
-go 1.14
+go 1.23.1
 
 require (
 	github.com/google/go-cmp v0.5.9

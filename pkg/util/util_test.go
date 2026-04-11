@@ -1,10 +1,12 @@
 package util_test
 
 import (
-	"build-commands/pkg/types"
-	"build-commands/pkg/util"
 	"sort"
 	"testing"
+
+	"github.com/dlfoo/build-commands/pkg/util"
+
+	"github.com/dlfoo/build-commands/pkg/types"
 
 	"github.com/google/go-cmp/cmp"
 )

@@ -1,13 +1,12 @@
 package main
 
 import (
-	"build-commands/pkg/command"
-	o "build-commands/pkg/output"
 	"encoding/json"
 	"sort"
 
-	"build-commands/pkg/config"
-	"build-commands/pkg/types"
+	"github.com/dlfoo/build-commands/pkg/command"
+	o "github.com/dlfoo/build-commands/pkg/output"
+
 	"context"
 	"flag"
 	"fmt"
@@ -15,6 +14,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dlfoo/build-commands/pkg/config"
+	"github.com/dlfoo/build-commands/pkg/types"
 
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
