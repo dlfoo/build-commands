@@ -11,9 +11,6 @@ import (
 
 func GetProfiles(p types.Profiles, profileSets ...[]string) types.Profiles {
 	profiles := make(map[string]*types.Profile)
-	// if len(profileList) == 0 {
-	// 	return profiles
-	// }
 	for _, set := range profileSets {
 		for _, name := range set {
 			if prof, ok := p[name]; ok {

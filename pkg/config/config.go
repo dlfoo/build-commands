@@ -46,10 +46,5 @@ func ParseConfig(r io.Reader) ([]*BuildConfig, map[string]*types.Profile, error)
 		}
 		return nil, nil, fmt.Errorf("%w, unknown error occured: %v", UnknownError, err)
 	}
-	//		for _, p := range c.Profiles {
-	//			for _, cm := range p.Commands {
-	//				log.Print(cm)
-	//			}
-	//		}
 	return c.Builds, c.Profiles, nil
 }
